@@ -41,6 +41,13 @@ if (Meteor.isClient) {
         }
     });
     
+    
+    Template.task.helpers({
+        isOwner: function(){
+            return this.owner === Meteor.userId();
+        }
+    });
+    
     Template.task.events({
         'click .toggle-checked':function(event,template){
             //Tasks.update(this._id,{$set:{checked:!this.checked}});
@@ -49,6 +56,9 @@ if (Meteor.isClient) {
         'click .delete':function(event,template){
             //Tasks.remove(this._id);
             Meteor.call("deleteTask",this._id);
+        },
+        'click .toggle-private':function(){
+            Meteor.call("setPrivate",this._id, !this.private);
         }
     });
     
@@ -72,7 +82,12 @@ if (Meteor.isServer) {
                 return Tasks.find({checked:{$ne:true}},{sort:{createAt:-1}});
             }else{
              */   
-                return Tasks.find({},{sort:{createAt:-1}});
+                return Tasks.find({
+                    $or:[
+                        {private: {$ne:true}},
+                        {owner: this.userId}
+                    ]
+                },{sort:{createAt:-1}});
            // }
     });
     
@@ -91,11 +106,27 @@ if (Meteor.isServer) {
         },
         
         deleteTask:function(taskId){
+            var task=Tasks.findOne(taskId);
+            if(task.private && task.owner !== Meteor.userId()){
+                throw new Meteor.Error('not-authorized');
+            }
             Tasks.remove(taskId);
         },
         
         setChecked:function(taskId, setChecked ){
+            var task=Tasks.findOne(taskId);
+            if(task.private && task.owner !== Meteor.userId()){
+                throw new Meteor.Error('not-authorized');
+            }
             Tasks.update(taskId,{$set:{checked:setChecked }});   
+        },
+        
+        setPrivate: function(taskId, setPrivate){
+            var task=Tasks.findOne(taskId);
+            if(task.owner !== Meteor.userId()){
+                throw new Meteor.Error('not-authornized');
+            }
+            Tasks.update(taskId,{$set:{private:setPrivate }});  
         }
     });
 }
